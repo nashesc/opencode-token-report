@@ -31,6 +31,7 @@ export const TokenReport = async (ctx) => {
         if (r && r.reason === "missing-tokens" && r.messageID) {
           if (seen.has(r.messageID)) return;
           seen.add(r.messageID);
+          pending.set(r.messageID, r.line); // visible flag, appended once by text.complete
         }
         return;
       }
@@ -43,15 +44,23 @@ export const TokenReport = async (ctx) => {
     } catch (e) { await log("warn", `event failed: ${e?.message}`); }
   };
   const pending = new Map();
+  const appended = new Set(); // messageIDs already footered: text.complete fires per PART
   return {
     event: async (input) => { await dispatch("message.updated")((input && input.event) || null); },
     "message.updated": dispatch("message.updated"),
     "session.idle": dispatch("session.idle"),
     "experimental.text.complete": async (input, output) => {
       try {
-        const line = (input && pending.get(input.messageID)) || "`tokens unavailable`";
-        if (output && typeof output.text === "string") output.text += `\n${line}`;
-        if (input?.messageID) pending.delete(input.messageID);
+        const id = input?.messageID;
+        // Append exactly once per message. No pending data (interim phase or
+        // unknown ids) -> leave text untouched, NEVER a placeholder flag.
+        if (!id || !pending.has(id) || appended.has(id)) return;
+        if (output && typeof output.text === "string") {
+          output.text += `\n${pending.get(id)}`;
+          appended.add(id);
+          if (appended.size > 1000) appended.clear();
+        }
+        pending.delete(id);
       } catch (e) { await log("warn", `text.complete failed: ${e?.message}`); }
     },
   };

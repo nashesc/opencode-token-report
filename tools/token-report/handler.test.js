@@ -2,12 +2,12 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { handleMessageUpdated } = require("./handler");
 
-const assistant = (tokens) => ({
+const assistant = (tokens, time = { created: 1, completed: 2 }) => ({
   type: "message.updated",
   properties: { info: {
     id: "msg_def", sessionID: "ses_abc", role: "assistant",
     modelID: "gpt-5", providerID: "openai", cost: 0.0012,
-    time: { created: 1 }, tokens,
+    time, tokens,
   } },
 });
 
@@ -46,4 +46,26 @@ test("malformed event and throwing logger never propagate", () => {
   const badLog = () => { throw new Error("log is down"); };
   const r = handleMessageUpdated(assistant({ input: 1, output: 1, reasoning: 0, cache: { read: 0, write: 0 } }), { log: badLog });
   assert.equal(r.ok, true); // logger failure must not break the report
+});
+
+test("streaming event without completed time → silent interim skip (no line, no vault)", () => {
+  const ev = assistant({ input: 800, output: 300, reasoning: 100, cache: { read: 30, write: 4 } }, { created: 1 });
+  const r = handleMessageUpdated(ev);
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, "interim");
+  assert.ok(!("line" in r), "interim carries no display line");
+});
+
+test("all-zero interim snapshot → silent skip so the final event still wins", () => {
+  const ev = assistant({ input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }, { created: 1 });
+  const r = handleMessageUpdated(ev);
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, "interim");
+});
+
+test("finished event with zero total → visible missing-tokens flag (never 0 line)", () => {
+  const r = handleMessageUpdated(assistant({ input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }));
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, "missing-tokens");
+  assert.equal(r.line, "`tokens unavailable`");
 });
