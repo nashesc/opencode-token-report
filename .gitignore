@@ -3,7 +3,3 @@
 .opencode/.session-manual-logs
 .opencode/.pending-test-errors
 .opencode/.pending-hook-errors
-
-# token-tracker log (durable, never in diffs or context)
-.opencode/token-tracker/usage*.jsonl
-!.opencode/token-tracker/.gitkeep
