@@ -3,3 +3,6 @@
 .opencode/.session-manual-logs
 .opencode/.pending-test-errors
 .opencode/.pending-hook-errors
+
+# Local backups — never track these
+*.bak
