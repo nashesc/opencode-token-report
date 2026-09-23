@@ -89,3 +89,38 @@ test("interim (streaming) event leaves later text untouched — no zero footer",
     assert.equal(output.text, "hello");
   } finally { delete process.env.TOKEN_USAGE_PATH; }
 });
+
+test("zero snapshot then real totals → footer shows the LATEST (last-wins)", async () => {
+  const dir = withTempVault();
+  try {
+    const mod = await import(SHIM + `?t=${Date.now() + 4}`);
+    const plugin = await mod.TokenReport({ client: { app: { log: async () => {} } }, project: {}, directory: process.cwd() });
+    await plugin.event(assistantEvent(
+      { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+      { created: 1 }
+    ));
+    await plugin.event(assistantEvent(
+      { input: 800, output: 300, reasoning: 100, cache: { read: 30, write: 4 } },
+      { created: 1 }
+    ));
+    const output = { text: "hello" };
+    await plugin["experimental.text.complete"]({ sessionID: "ses_abc", messageID: "msg_def", partID: "prt_1" }, output);
+    assert.ok(output.text.includes("`tokens: 1234`"), `got: ${output.text}`);
+    const lines = fs.readFileSync(path.join(dir, "TokenUsage.md"), "utf8").split("\n").filter((l) => l.includes("msg_def"));
+    assert.equal(lines.length, 1);
+    assert.ok(lines[0].includes("total:1234"));
+  } finally { delete process.env.TOKEN_USAGE_PATH; }
+});
+
+test("identical redelivery (dual subscription) writes exactly one vault line", async () => {
+  const dir = withTempVault();
+  try {
+    const mod = await import(SHIM + `?t=${Date.now() + 5}`);
+    const plugin = await mod.TokenReport({ client: { app: { log: async () => {} } }, project: {}, directory: process.cwd() });
+    const ev = assistantEvent({ input: 10, output: 5, reasoning: 0, cache: { read: 0, write: 0 } });
+    await plugin.event(ev);
+    await plugin.event(ev);
+    const lines = fs.readFileSync(path.join(dir, "TokenUsage.md"), "utf8").split("\n").filter((l) => l.includes("msg_def"));
+    assert.equal(lines.length, 1);
+  } finally { delete process.env.TOKEN_USAGE_PATH; }
+});

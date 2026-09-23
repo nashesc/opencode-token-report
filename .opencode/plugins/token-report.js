@@ -14,18 +14,14 @@ function loadTracker(root) {
 
 export const TokenReport = async (ctx) => {
   const seen = new Set();
+  const recorded = new Map(); // messageID -> last recorded total (last-wins, idempotent vault writes)
   const log = async (level, message) => {
     try { await ctx.client.app.log({ service: "token-report", level, message }); } catch {}
-  };
-  const candidateId = (event) => {
-    try { return event?.properties?.info?.id ?? null; } catch { return null; }
   };
   const dispatch = (eventName) => async (event) => {
     try {
       const root = ctx?.directory ?? process.cwd();
       const { handleMessageUpdated, appendReport, resolveVaultPath } = loadTracker(root);
-      const preId = candidateId(event);
-      if (preId && seen.has(preId)) return; // dual-subscription dedup: pre-check BEFORE append
       const r = handleMessageUpdated(event, { log: (l, m) => log(l, m) });
       if (!r || !r.ok) {
         if (r && r.reason === "missing-tokens" && r.messageID) {
@@ -35,7 +31,12 @@ export const TokenReport = async (ctx) => {
         }
         return;
       }
-      if (seen.has(r.messageID)) return;
+      // Last-wins: a newer event with different totals overwrites (streaming
+      // interim -> final). Identical redelivery (dual subscription) is skipped
+      // so the vault never gets duplicate lines.
+      if (recorded.get(r.messageID) === r.total) return;
+      recorded.set(r.messageID, r.total);
+      if (recorded.size > 1000) recorded.clear();
       seen.add(r.messageID);
       if (seen.size > 1000) seen.clear();
       try { appendReport(r, resolveVaultPath()); } catch (e) { await log("warn", `vault write failed: ${e?.message}`); }

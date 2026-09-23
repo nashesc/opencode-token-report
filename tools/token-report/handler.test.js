@@ -48,19 +48,20 @@ test("malformed event and throwing logger never propagate", () => {
   assert.equal(r.ok, true); // logger failure must not break the report
 });
 
-test("streaming event without completed time → silent interim skip (no line, no vault)", () => {
+test("non-zero total without completed time still records (finished marker optional)", () => {
   const ev = assistant({ input: 800, output: 300, reasoning: 100, cache: { read: 30, write: 4 } }, { created: 1 });
+  const r = handleMessageUpdated(ev);
+  assert.equal(r.ok, true);
+  assert.equal(r.total, 1234);
+  assert.equal(r.line, "`tokens: 1234`");
+});
+
+test("missing tokens without completed time → silent interim skip (no line)", () => {
+  const ev = assistant(undefined, { created: 1 });
   const r = handleMessageUpdated(ev);
   assert.equal(r.ok, false);
   assert.equal(r.reason, "interim");
   assert.ok(!("line" in r), "interim carries no display line");
-});
-
-test("all-zero interim snapshot → silent skip so the final event still wins", () => {
-  const ev = assistant({ input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }, { created: 1 });
-  const r = handleMessageUpdated(ev);
-  assert.equal(r.ok, false);
-  assert.equal(r.reason, "interim");
 });
 
 test("finished event with zero total → visible missing-tokens flag (never 0 line)", () => {
