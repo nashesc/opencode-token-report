@@ -9,6 +9,8 @@ function loadTracker(root) {
     handleMessageUpdated: require(path.join(base, "handler.js")).handleMessageUpdated,
     appendReport: require(path.join(base, "vault-log.js")).appendReport,
     resolveVaultPath: require(path.join(base, "vault-log.js")).resolveVaultPath,
+    totalTokens: require(path.join(base, "tokens.js")).totalTokens,
+    formatTotalLine: require(path.join(base, "tokens.js")).formatTotalLine,
   };
 }
 
@@ -53,13 +55,30 @@ export const TokenReport = async (ctx) => {
     "experimental.text.complete": async (input, output) => {
       try {
         const id = input?.messageID;
-        // Append exactly once per message. No pending data (interim phase or
-        // unknown ids) -> leave text untouched, NEVER a placeholder flag.
-        if (!id || !pending.has(id) || appended.has(id)) return;
+        const sessionID = input?.sessionID;
+        // Exactly-once per message. No id -> cannot attribute: leave untouched.
+        if (!id || appended.has(id)) return;
+        const root = ctx?.directory ?? process.cwd();
+        const { totalTokens, formatTotalLine } = loadTracker(root);
+        let line = null;
+        let source = null;
+        // 1. Pull fresh server state (race-proof: independent of event timing).
+        try {
+          const res = await ctx.client.session.message({ path: { id: sessionID, messageID: id } });
+          const pulled = res && res.data && res.data.info && res.data.info.tokens;
+          const total = totalTokens(pulled);
+          if (total > 0) { line = formatTotalLine(total); source = "pull"; }
+        } catch {}
+        // 2. Fallback to push-collected pending (final event or missing-flag).
+        if (!line && pending.has(id)) { line = pending.get(id); source = "pending"; }
+        // 3. Nothing usable yet -> leave text untouched AND unmarked, so a later
+        //    part can still append the matured total. Never a placeholder.
+        if (!line) return;
         if (output && typeof output.text === "string") {
-          output.text += `\n${pending.get(id)}`;
+          output.text += `\n${line}`;
           appended.add(id);
           if (appended.size > 1000) appended.clear();
+          await log("info", `footer appended from ${source} msg=${id}`);
         }
         pending.delete(id);
       } catch (e) { await log("warn", `text.complete failed: ${e?.message}`); }

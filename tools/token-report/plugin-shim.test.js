@@ -124,3 +124,47 @@ test("identical redelivery (dual subscription) writes exactly one vault line", a
     assert.equal(lines.length, 1);
   } finally { delete process.env.TOKEN_USAGE_PATH; }
 });
+
+const pulledClient = (tokens, log = async () => {}) => ({
+  app: { log },
+  session: { message: async () => ({ data: { info: { tokens } } }) },
+});
+
+test("pull-hit appends fresh total with NO prior event (race fix proof)", async () => {
+  withTempVault();
+  try {
+    const mod = await import(SHIM + `?t=${Date.now() + 6}`);
+    const plugin = await mod.TokenReport({ client: pulledClient({ input: 100, output: 20, reasoning: 5, cache: { read: 1, write: 0 } }), project: {}, directory: process.cwd() });
+    const output = { text: "hello" };
+    await plugin["experimental.text.complete"]({ sessionID: "ses_abc", messageID: "msg_def", partID: "prt_1" }, output);
+    assert.ok(output.text.includes("`tokens: 126`"), `got: ${output.text}`);
+  } finally { delete process.env.TOKEN_USAGE_PATH; }
+});
+
+test("pull-zero falls back to pending event data", async () => {
+  withTempVault();
+  try {
+    const mod = await import(SHIM + `?t=${Date.now() + 7}`);
+    const plugin = await mod.TokenReport({ client: pulledClient({ input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }), project: {}, directory: process.cwd() });
+    await plugin.event(assistantEvent({ input: 800, output: 300, reasoning: 100, cache: { read: 30, write: 4 } }));
+    const output = { text: "hello" };
+    await plugin["experimental.text.complete"]({ sessionID: "ses_abc", messageID: "msg_def", partID: "prt_1" }, output);
+    assert.ok(output.text.includes("`tokens: 1234`"), `got: ${output.text}`);
+  } finally { delete process.env.TOKEN_USAGE_PATH; }
+});
+
+test("pull-throws falls back to pending; all-missing leaves text untouched", async () => {
+  withTempVault();
+  try {
+    const throwing = { app: { log: async () => {} }, session: { message: async () => { throw new Error("down"); } } };
+    const mod = await import(SHIM + `?t=${Date.now() + 8}`);
+    const plugin = await mod.TokenReport({ client: throwing, project: {}, directory: process.cwd() });
+    await plugin.event(assistantEvent({ input: 10, output: 5, reasoning: 0, cache: { read: 0, write: 0 } }));
+    const output = { text: "hello" };
+    await plugin["experimental.text.complete"]({ sessionID: "ses_abc", messageID: "msg_def", partID: "prt_1" }, output);
+    assert.ok(output.text.includes("`tokens: 15`"), `got: ${output.text}`);
+    const bare = { text: "world" };
+    await plugin["experimental.text.complete"]({ sessionID: "ses_x", messageID: "msg_unknown", partID: "prt_9" }, bare);
+    assert.equal(bare.text, "world");
+  } finally { delete process.env.TOKEN_USAGE_PATH; }
+});
