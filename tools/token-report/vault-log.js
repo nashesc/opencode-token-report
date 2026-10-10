@@ -1,14 +1,15 @@
 "use strict";
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 
-const DEFAULT_VAULT_FILE = "C:\\Users\\Lenovo\\Documents\\Obsidian Vault\\OpenCode\\TokenUsage.md";
+const DEFAULT_VAULT_FILE = null;
 const HEADER = "# TokenUsage\n\nEntries are prepended at the top (newest first), auto-archived after 50 entries.\n\n";
 const ENTRY_RE = /^\d{4}-\d{2}-\d{2}\s+[—-]/;
 const MAX_ENTRIES = 50;
 
 function resolveVaultPath(explicit) {
-  return explicit || process.env.TOKEN_USAGE_PATH || DEFAULT_VAULT_FILE;
+  return explicit || process.env.TOKEN_USAGE_PATH || path.join(os.homedir(), "Documents", "Obsidian Vault", "OpenCode", "TokenUsage.md");
 }
 
 function today() { return new Date().toISOString().slice(0, 10); }
@@ -28,6 +29,8 @@ function readEntries(vaultPath) {
   return text.split("\n").filter((l) => ENTRY_RE.test(l.trim()));
 }
 
+function escapeRegExp(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
 function appendReport(report, vaultPath) {
   try {
     if (!report || report.ok === false || !report.vaultFields) return { ok: false, reason: "skip-not-written" };
@@ -40,6 +43,12 @@ function appendReport(report, vaultPath) {
     } catch {
       entries = [];
     }
+    // Update-in-place by messageID (newest-wins): a streaming interim
+    // followed by its final must not leave two lines for one message —
+    // /tokens sums every line, so duplicates inflate the grand total.
+    // The trailing-boundary guard avoids prefix collisions (m1 vs m10).
+    const idRe = new RegExp(`msg:${escapeRegExp(report.messageID)}(?:\\s|$)`);
+    entries = entries.filter((l) => !idRe.test(l));
     entries.unshift(formatLine(report));
     let overflow = [];
     if (entries.length > MAX_ENTRIES) {
