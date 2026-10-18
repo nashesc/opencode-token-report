@@ -29,7 +29,7 @@ test("default window is the newest 10 requests, window printed in header", () =>
   assert.match(out, /rows 10 of 15 requests/);
   assert.ok(out.includes("m14"), "newest present");
   assert.ok(!out.includes("m4 "), "oldest excluded");
-  assert.match(out, /\| 1 session \|/, "session count comes from the printed rows, not the scan");
+  assert.match(out, /\| 1 session \|/, "session count comes from the window, not the scan");
 });
 
 test("--last N narrows rows, --days N filters by entry date", () => {
@@ -216,4 +216,81 @@ test("a request cut by the scan limit is marked ~partial and kept out of the rol
 
 test("unreadable path never throws", () => {
   assert.ok(getTokensSummary("Z:\\\0\\nope.md").startsWith("Token summary unavailable"));
+});
+
+// Newest-first vault: `reqs` requests of `steps` steps each, one session.
+const multiStepVault = (reqs, steps, { session = "ses_x", date = "2026-10-18" } = {}) => {
+  const clock = (n) => [String(Math.floor(n / 3600)).padStart(2, "0"),
+    String(Math.floor(n / 60) % 60).padStart(2, "0"), String(n % 60).padStart(2, "0")].join(":");
+  const rows = [];
+  for (let r = reqs - 1; r >= 0; r--) {
+    for (let s = steps - 1; s >= 0; s--) {
+      rows.push(line(date, `r${r}s${s}`, { prompt: `p${r}`, session, time: clock(r * steps + s) }));
+    }
+  }
+  return rows.join("\n");
+};
+
+test("a scan too short to fill the window widens instead of under-reporting", () => {
+  const p = tmp();
+  fs.writeFileSync(p, multiStepVault(20, 10), "utf8");
+  // 20 entries hold only 2 requests, far short of 10 — the scan must grow.
+  const out = getTokensSummary(p, { maxPrompts: 10, limit: 20 });
+  assert.equal(out.split("\n").filter((l) => /steps:\s*\d+ total:/.test(l)).length, 10, "window filled");
+  assert.match(out, /scanned 126\+ entries \(raised from limit 20 to 126\)/);
+  assert.ok(!out.includes("truncated at scan limit"), "filled window, nothing to disclose");
+  assert.match(out, /window: last 10 requests \|/, "header claim now true");
+});
+
+test("a window the scan cannot fill says how many of the requested it got", () => {
+  const p = tmp();
+  // 800 entries but only 8 requests: even the ceiling cannot reach 10.
+  fs.writeFileSync(p, multiStepVault(8, 100), "utf8");
+  const cut = getTokensSummary(p, { maxPrompts: 10, limit: 50 });
+  assert.match(cut, /window truncated at scan limit: 3 of 10 requested/, "shortfall counted and named");
+  assert.equal(cut.split("\n").filter((l) => /steps:\s*\d+ total:/.test(l)).length, 3);
+  assert.match(cut, /scanned 300\+ entries \(raised from limit 50 to 300\)/);
+  assert.match(cut, /~partial/, "the cut request is still marked");
+  const days = getTokensSummary(p, { kind: "days", days: 7, maxPrompts: 10, limit: 300 });
+  assert.match(days, /window truncated at scan limit: 3 of 10 requested/, "same wording in days mode");
+  const q = tmp();
+  fs.writeFileSync(q, multiStepVault(8, 10), "utf8");
+  const whole = getTokensSummary(q, { maxPrompts: 10, limit: 300 });
+  assert.ok(!whole.includes("truncated at scan limit"), "no marker when the whole file was read");
+  assert.equal(whole.split("\n").filter((l) => /steps:\s*\d+ total:/.test(l)).length, 8);
+});
+
+test("header session count is the window's, and cap-dropped rollups are disclosed", () => {
+  const p = tmp();
+  const rows = [];
+  // One request per session, so every dropped row also drops a rollup.
+  for (let i = 0; i < 15; i++) rows.push(line("2026-10-18", i, { prompt: `p${i}`, session: `ses_${i}`, time: `10:${String(i).padStart(2, "0")}:00` }));
+  fs.writeFileSync(p, rows.join("\n"), "utf8");
+  const out = getTokensSummary(p, { maxPrompts: 15 });
+  assert.match(out, /\| 15 sessions \|/, "counted from the window, not the printed rows");
+  const rolls = out.split("\n").filter((l) => l.startsWith("rollup "));
+  const shown = out.split("\n").filter((l) => /steps:\s*\d+ total:/.test(l)).length;
+  assert.equal(rolls.length, shown, "a rollup survives only with its row");
+  assert.ok(rolls.length < 15, "the cap really did drop rollups");
+  assert.ok(out.includes(`+${15 - rolls.length} sessions not shown`), "the dropped rollups are named");
+  assert.ok(out.split("\n").length <= 15, `${out.split("\n").length} lines`);
+  // The oldest request is cut by the scan, so its lone session has no rollup
+  // for a reason that is not the cap — it must not be counted as cap-dropped.
+  const q = tmp();
+  const cut = [];
+  for (let i = 0; i < 16; i++) cut.push(line("2026-10-18", i, { prompt: `c${i}`, session: `ses_${i}`, time: `10:${String(i).padStart(2, "0")}:00` }));
+  fs.writeFileSync(q, cut.join("\n"), "utf8");
+  const cutOut = getTokensSummary(q, { maxPrompts: 16, limit: 16 });
+  const cutRolls = cutOut.split("\n").filter((l) => l.startsWith("rollup ")).length;
+  assert.ok(cutOut.includes(`+${16 - cutRolls - 1} sessions not shown`), "partial-only session excluded from the count");
+  // Its session has no rollup because the scan cut it, not the cap.
+  const t = tmp();
+  fs.writeFileSync(t, [
+    line("2026-10-18", 0, { prompt: "c0", session: "ses_0", time: "10:00:00" }),
+    line("2026-10-18", 1, { prompt: "c1", session: "ses_1", time: "10:01:00" }),
+  ].join("\n"), "utf8");
+  const cutTwo = getTokensSummary(t, { maxPrompts: 2, limit: 2 });
+  assert.match(cutTwo, /c0\s+steps: 1 .*~partial/, "oldest request marked partial");
+  assert.match(cutTwo, /\| 2 sessions \|/, "both window sessions counted");
+  assert.ok(!cutTwo.includes("sessions not shown"), "a partial-only session is not reported as cap-dropped");
 });
