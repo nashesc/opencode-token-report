@@ -6,3 +6,5 @@
 
 # Local backups — never track these
 *.bak
+
+design/logo/

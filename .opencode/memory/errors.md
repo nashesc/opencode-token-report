@@ -2,4 +2,26 @@
 
 Entries are prepended at the top (newest first), auto-archived after 50 entries; resolving one means editing its Status field in place, not moving or deleting it.
 
+2026-10-18 — Project instructions array replaces the global one, so global concise/clarify/profile.md never reached a session; repeated them as absolute paths — Status: Resolved — verified by injection audit: only AGENTS.md + the two project memory files arrived
+
+2026-10-18 — Instructions and permissions are snapshotted at server start, so edits to the instructions LIST or bash rules in opencode.jsonc need a desktop restart — Status: Resolved — no watcher on opencode.jsonc (only AGENTS.md and skills/); file contents themselves are re-read per prompt; cost three failed verification sessions
+
+2026-10-15 — Orphaned opencode serve --service squatted on managed port 49374 while service status reported stopped; service restart killed my own shell host mid-call (recovered, retry showed 49474 live) — Status: Resolved — moved service to 49474 via set-port + restart; verify CWD-independent PIDs with parent-chain check before touching serve processes
+
+2026-10-14 — Cited wrong repo SHA in skill: ran git rev-parse HEAD in Default Project instead of the fresh clone, pasted its HEAD 6b1f0f6 as agent-reach's — Status: Resolved — re-cloned and recorded real HEAD 94f06c1; always pass -C or set workdir and verify CWD when recording SHAs
+
+2026-10-14 — RTK release build failed: msvc linker link.exe not found (rustup MSVC toolchain without VS prerequisites) — Status: Resolved — installed VS 2022 BuildTools with VCTools workload via winget (MSVC 14.44), rebuild finished in ~14min
+
+2026-10-12 — Snake workflow outputs must be a whitespace-separated block list (comma form wrote one mangled filename); profile images are camo-cached by URL so stale cards/snake need a query-param bump — Status: Resolved — fixed in c45a41f plus v2/v3 cache-busters
+
+2026-10-11 — First block-probe commit slipped through: git-sh PATH lacked gitleaks (skip-notice path), unpushed probe reset plus gc — Status: Resolved — refreshed-PATH repro blocks correctly, restart shells to propagate User PATH
+
+2026-10-11 — Pre-commit hook: gitleaks found possible secret(s) in staged changes, commit blocked — Status: Open — verify whether true positive or false hit before recommitting
+
+2026-10-11 — Stale opencode server served pre-swap config, mimicked key failure and TUI send error — Status: Resolved — taskkill discipline plus fresh debug config before diagnosing
+
+2026-10-11 — Sanitizer corpus test tripped its own live sweep — Status: Resolved — *.test.ps1 excluded from manifest, literals split at runtime
+
+2026-10-11 — token_router deletion dropped a closing brace, broke opencode.jsonc — Status: Resolved — drift-guard JSON check caught it, repaired and parse-verified
+
 2026-09-20 — Test failure: test_memory_archive — Status: Open — threshold boundary off by 1

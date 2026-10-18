@@ -1,0 +1,10 @@
+<svg fill="#5b50e6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><title>UVE Hammock logo</title>
+  
+  <!-- Final symbol: code chevrons + slung hammock + resting sun. Stroke-based master. -->
+  <g fill="none" stroke="#5b50e6" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="100,80 64,128 100,176" stroke-width="30"/>
+    <polyline points="156,80 192,128 156,176" stroke-width="30"/>
+    <path d="M72,132 Q128,184 184,132" stroke-width="16"/>
+  </g>
+  <circle cx="128" cy="116" r="14" fill="#5b50e6"/>
+</svg>
