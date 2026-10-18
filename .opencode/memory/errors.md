@@ -2,6 +2,8 @@
 
 Entries are prepended at the top (newest first), auto-archived after 50 entries; resolving one means editing its Status field in place, not moving or deleting it.
 
+2026-10-18 — `node --test tools/token-report/` fails with MODULE_NOT_FOUND on Node 24; use a glob (`node --test "tools/token-report/*.test.js"`) — Status: Open — a directory argument is resolved as a module path, so it reports a fake test failure that costs a re-diagnosis
+
 2026-10-18 — Project instructions array replaces the global one, so global concise/clarify/profile.md never reached a session; repeated them as absolute paths — Status: Resolved — verified by injection audit: only AGENTS.md + the two project memory files arrived
 
 2026-10-18 — Instructions and permissions are snapshotted at server start, so edits to the instructions LIST or bash rules in opencode.jsonc need a desktop restart — Status: Resolved — no watcher on opencode.jsonc (only AGENTS.md and skills/); file contents themselves are re-read per prompt; cost three failed verification sessions

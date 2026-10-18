@@ -2,6 +2,14 @@
 
 Entries are prepended at the top (newest first), auto-archived after 50 entries.
 
+2026-10-18 — `/tokens` header counts window sessions, not printed rows, and prints "+K sessions not shown" for cap-dropped rollups; a last-mode scan short of maxPrompts widens to SCAN_CEIL or says "truncated at scan limit: N of M" — why: header claimed 10 requests while printing 3; 8f381d
+
+2026-10-18 — Rollups aggregate only window requests; days mode scans to SCAN_CEIL; a request cut by the scan limit is marked ~partial and excluded from rollup totals — why: rolling up every scanned group made `--last 3` report requests:5 with a range starting before the header's, and a 7-day window never scanned past the request-window limit; 2375e0f
+
+2026-10-18 — A request row is labelled with its LAST step time and rows sort newest-first; the header range is min→max over the window, session count over printed rows — why: TokenUsage.md is newest-first but TokenUsage_archive.md is oldest-first, so first/last step time must come from the values, not file position; 8410a04, session-count clause superseded by 8f381d
+
+2026-10-18 — `/tokens` summary reshaped into per-request rows (steps, total, cache-read/step, fresh-in/step), a 2-line window header, one rollup line per session, and a hard 15-line budget — why: message-level lines covered only ~8 requests per session, so per-step context growth was invisible; rows stay scannable in a TUI; 88aa303, corrected by 8410a04 + 2375e0f
+
 2026-10-18 — Memory v3 file-direct memory deployed: profile.md auto-load, dedupe/supersede, recall, lint; patch committed 761eaa6 — why: MCP-off made the vault write-only, so prefs never loaded and had to be restated every session; 5a-5d verified live, 31/31 tests
 
 2026-10-15 — Per-prompt token grouping: user-event observe + prompt:stamping, 300-line vault (~50 prompts), grouped summary rows with SDK cost, plain-language 4-line footer — why: 50 message-lines covered only ~8 prompts so trends vanished mid-session; suite 40/40, published + pushed 638034a
