@@ -53,22 +53,24 @@ const padL = (s, w) => String(s).padStart(w);
 // compare is chronological regardless of the order lines sit in the file.
 const newestFirst = (a, b) => (a.lastKey < b.lastKey ? 1 : a.lastKey > b.lastKey ? -1 : 0);
 
-// One rollup per session that has at least one printed row, covering all of
-// that session's requests in the window (not just the printed ones).
-function rollupFor(rows, groups) {
+// One rollup per session that has at least one printed row, aggregating only
+// the window's requests for that session (never a group outside the window).
+// Requests cut by the scan limit are excluded — their step sums are incomplete.
+function rollupFor(rows, windowGroups) {
   const agg = new Map();
   for (const g of rows) {
     if (!agg.has(g.session)) agg.set(g.session, { session: g.session, requests: 0, steps: 0, total: 0, input: 0, cacheRead: 0, loKey: null, loAt: null, hiKey: null, hiAt: null });
   }
-  for (const g of groups) {
+  for (const g of windowGroups) {
     const a = agg.get(g.session);
-    if (!a) continue;
+    if (!a || g.partial) continue;
     a.requests += 1;
     a.steps += g.steps; a.total += g.total; a.input += g.input; a.cacheRead += g.cacheRead;
     if (a.loKey === null || g.firstKey < a.loKey) { a.loKey = g.firstKey; a.loAt = g.firstAt; }
     if (a.hiKey === null || g.lastKey > a.hiKey) { a.hiKey = g.lastKey; a.hiAt = g.lastAt; }
   }
-  return [...agg.values()].sort((a, b) => (a.hiKey < b.hiKey ? 1 : a.hiKey > b.hiKey ? -1 : 0));
+  return [...agg.values()].filter((a) => a.requests > 0)
+    .sort((a, b) => (a.hiKey < b.hiKey ? 1 : a.hiKey > b.hiKey ? -1 : 0));
 }
 
 function getTokensSummary(vaultPath, opts = {}) {
@@ -112,32 +114,44 @@ function getTokensSummary(vaultPath, opts = {}) {
     if (groups.length === 0) return "No token data yet.";
     groups.sort(newestFirst);
     const wanted = kind === "days" ? groups.length : Math.min(maxPrompts, groups.length);
-    let rows = groups.slice(0, wanted);
-    let roll = rollupFor(rows, groups);
+    // The window is the requested slice of groups. Rollups and the header
+    // range are computed from it; printed rows may be fewer when the line
+    // budget bites.
+    const windowGroups = groups.slice(0, wanted);
+    // Bug 3: the scan limit can cut the oldest request mid-stream. If the
+    // oldest entry read is that request's first step, its sums are incomplete.
+    let oldestRead = entries[0];
+    for (const e of entries) if (e.sortKey < oldestRead.sortKey) oldestRead = e;
+    if (entries.length >= limit) {
+      const cut = groups.find((g) => g.firstKey === oldestRead.sortKey);
+      if (cut) cut.partial = true;
+    }
+    let rows = windowGroups.slice();
+    let roll = rollupFor(rows, windowGroups);
     // Fit the budget: dropping a row can also drop a whole session's rollup,
     // so the cost is recomputed until it settles.
     while (rows.length > 1 &&
       HEADER_LINES + rows.length + roll.length + FLAG_LINES + (rows.length < wanted ? 1 : 0) > MAX_LINES) {
       rows = rows.slice(0, rows.length - 1);
-      roll = rollupFor(rows, groups);
+      roll = rollupFor(rows, windowGroups);
     }
     const flagged = rows.filter(possibleDoubleCount);
     const rowLines = rows.map((g) =>
-      `${pad(g.lastAt, 19)} ${pad(g.prompt, 30)} steps:${padL(g.steps, 2)} total:${padL(fmt(g.total), 11)} cache-read/step:${padL(fmt(g.cacheRead / g.steps), 9)} fresh-in/step:${padL(fmt(g.input / g.steps), 9)}${possibleDoubleCount(g) ? " !dbl" : ""}`);
+      `${pad(g.lastAt, 19)} ${pad(g.prompt, 30)} steps:${padL(g.steps, 2)} total:${padL(fmt(g.total), 11)} cache-read/step:${padL(fmt(g.cacheRead / g.steps), 9)} fresh-in/step:${padL(fmt(g.input / g.steps), 9)}${possibleDoubleCount(g) ? " !dbl" : ""}${g.partial ? " ~partial" : ""}`);
     if (rows.length < wanted) rowLines.push(`+${wanted - rows.length} more rows (oldest of ${groups.length} requests)`);
-    // Header range comes from the printed rows only, min → max, so it can
-    // never come out reversed.
-    let lo = rows[0];
-    let hi = rows[0];
-    for (const g of rows) {
+    // Header range spans the whole window, so every rollup range sits inside it.
+    let lo = windowGroups[0];
+    let hi = windowGroups[0];
+    for (const g of windowGroups) {
       if (g.firstKey < lo.firstKey) lo = g;
       if (g.lastKey > hi.lastKey) hi = g;
     }
     const sessions = new Set(rows.map((g) => g.session)).size;
     const scope = kind === "days" ? `last ${days} days` : `last ${maxPrompts} requests`;
+    const truncated = kind === "days" && entries.length >= limit ? " | window truncated at scan limit" : "";
     const header = [
       `window: ${scope} | ${lo.firstAt} → ${hi.lastAt} | ${sessions} session${sessions === 1 ? "" : "s"} | model ${rows[0].model}`,
-      `total = sum across all steps, not context size | rows ${rows.length} of ${groups.length} requests | scanned ${entries.length}${entries.length === limit ? "+" : ""} entries (limit ${limit})`,
+      `total = sum across all steps, not context size | rows ${rows.length} of ${groups.length} requests | scanned ${entries.length}${entries.length === limit ? "+" : ""} entries (limit ${limit})${truncated}`,
     ].join("\n");
     const rollLines = roll.map((a) =>
       `rollup ${a.session}: requests:${a.requests} steps:${a.steps} total(sum of steps):${fmt(a.total)} cache-read/step:${fmt(a.cacheRead / a.steps)} fresh-in/step:${fmt(a.input / a.steps)} ${a.loAt} → ${a.hiAt}`);
@@ -160,7 +174,9 @@ if (require.main === module) {
   const days = Math.max(1, opt("--days", 7) || 7);
   const maxPrompts = Math.max(1, opt("--last", DEFAULT_ROWS) || DEFAULT_ROWS);
   // Read only as much as the window needs, never below the historical floor.
-  const limit = Math.min(SCAN_CEIL, Math.max(SCAN_FLOOR, 8 * maxPrompts));
+  // A days window can span far more entries than a request window, so it
+  // always scans to the ceiling.
+  const limit = kind === "days" ? SCAN_CEIL : Math.min(SCAN_CEIL, Math.max(SCAN_FLOOR, 8 * maxPrompts));
   const positional = argv.filter((a) => !a.startsWith("--") && !/^\d+$/.test(a));
   process.stdout.write(getTokensSummary(resolveVaultPath(positional[0]), { kind, days, maxPrompts, limit }) + "\n");
 }

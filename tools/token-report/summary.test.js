@@ -14,6 +14,9 @@ const tmp = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), "tokens-sum-
 const line = (date, i, { session = "ses_abc", prompt = "p1", input = 100, cacheRead = 900, time = "10:00:00" } = {}) =>
   `${date} — ${time} agent:build session:${session} msg:msg_${i} prompt:${prompt} cost:0 model:openai/gpt-5 total:${input + cacheRead + 40} (in:${input} out:30 reason:10 cache-read:${cacheRead} cache-write:0)`;
 
+// Relative date so days-mode tests keep passing as the calendar moves.
+const dayOffset = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+
 test("empty/missing vault → friendly message, never throws", () => {
   assert.equal(getTokensSummary(path.join(os.tmpdir(), `nope-${Date.now()}.md`)), "No token data yet.");
 });
@@ -166,6 +169,49 @@ test("old date-only lines still parse (backward compat)", () => {
   assert.match(out, /window: last 10 requests/);
   assert.match(out, /rows 1 of 1 requests/);
   assert.match(out, /2026-10-14\s+m_old/);
+});
+
+test("rollup aggregates only the window, and its range stays inside the header range", () => {
+  const p = tmp();
+  const rows = [];
+  for (let i = 0; i < 20; i++) rows.push(line("2026-10-18", i, { prompt: `w${i}`, session: "ses_w", time: `10:${String(i).padStart(2, "0")}:00` }));
+  fs.writeFileSync(p, rows.join("\n"), "utf8");
+  const out = getTokensSummary(p, { maxPrompts: 3 });
+  const roll = out.split("\n").find((l) => l.startsWith("rollup "));
+  assert.match(roll, /requests:3 steps:3/, "the 3 window requests, not all 20 scanned");
+  const [lo, hi] = out.split("\n")[0].match(/\| (\S+ \S+) → (\S+ \S+) \|/).slice(1);
+  const [rlo, rhi] = roll.match(/ (\S+ \S+) → (\S+ \S+)$/).slice(1);
+  assert.ok(rlo >= lo && rhi <= hi, `rollup ${rlo} → ${rhi} inside header ${lo} → ${hi}`);
+});
+
+test("days mode reports a scan-limit cut window and still spans its days", () => {
+  const p = tmp();
+  const rows = [];
+  for (let d = 4; d >= 0; d--) rows.push(line(dayOffset(d), 1, { prompt: `d${d}`, session: "ses_d" }));
+  rows.push(line(dayOffset(30), 9, { prompt: "ancient", session: "ses_d" }));
+  fs.writeFileSync(p, rows.join("\n"), "utf8");
+  const cut = getTokensSummary(p, { kind: "days", days: 7, limit: 5 });
+  assert.match(cut, new RegExp(`\\| ${dayOffset(4)} 10:00:00 → ${dayOffset(0)} 10:00:00 \\|`), "range spans the window days");
+  assert.match(cut, /window truncated at scan limit/);
+  assert.ok(!cut.includes("ancient"), "entry older than the window excluded");
+  const whole = getTokensSummary(p, { kind: "days", days: 7, limit: 300 });
+  assert.ok(!whole.includes("window truncated at scan limit"), "no marker when every entry was scanned");
+});
+
+test("a request cut by the scan limit is marked ~partial and kept out of the rollup", () => {
+  const p = tmp();
+  const rows = [];
+  // Newest-first like the vault: three fresh requests, then a 29-step
+  // request whose first step is the oldest entry in the file.
+  for (let i = 2; i >= 0; i--) rows.push(line("2026-10-18", 100 + i, { prompt: `n${i}`, session: "ses_n", time: `10:0${i}:00` }));
+  for (let i = 28; i >= 0; i--) rows.push(line("2026-10-18", i, { prompt: "big", session: "ses_p", time: `09:${String(i).padStart(2, "0")}:00` }));
+  fs.writeFileSync(p, rows.join("\n"), "utf8");
+  const cut = getTokensSummary(p, { maxPrompts: 10, limit: 32 });
+  assert.match(cut, /big\s+steps:29 total:.*~partial/, "oldest request marked partial");
+  assert.ok(!cut.includes("rollup ses_p"), "a session whose only request is partial gets no rollup");
+  assert.match(cut, /rollup ses_n: requests:3 steps:3/);
+  const whole = getTokensSummary(p, { maxPrompts: 10, limit: 33 });
+  assert.ok(!whole.includes("~partial"), "no marker when the scan reached past the first step");
 });
 
 test("unreadable path never throws", () => {
