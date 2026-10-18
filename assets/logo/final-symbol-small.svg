@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
-  <title>UVE Hammock logo (small-size cut)</title>
-  <!-- Small-size cut: heavier strokes, larger sun, hammock merged into a smile bar for 16-32px. -->
-  <g fill="none" stroke="black" stroke-linecap="round" stroke-linejoin="round">
-    <polyline points="102,78 62,128 102,178" stroke-width="38"/>
-    <polyline points="154,78 194,128 154,178" stroke-width="38"/>
-  </g>
-  <circle cx="128" cy="118" r="17" fill="black"/>
-</svg>
