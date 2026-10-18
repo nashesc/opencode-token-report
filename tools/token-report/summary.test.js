@@ -11,8 +11,8 @@ const rep = (i, extra = {}) => ({ sessionID: "ses_abc", messageID: `m${i}`, mode
 const tmp = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), "tokens-sum-")); return path.join(d, "TokenUsage.md"); };
 // Raw lines let a test place entries on a chosen date (appendReport always
 // stamps today) without going through the vault writer.
-const line = (date, i, { session = "ses_abc", prompt = "p1", input = 100, cacheRead = 900 } = {}) =>
-  `${date} — 10:00:00 agent:build session:${session} msg:msg_${i} prompt:${prompt} cost:0 model:openai/gpt-5 total:${input + cacheRead + 40} (in:${input} out:30 reason:10 cache-read:${cacheRead} cache-write:0)`;
+const line = (date, i, { session = "ses_abc", prompt = "p1", input = 100, cacheRead = 900, time = "10:00:00" } = {}) =>
+  `${date} — ${time} agent:build session:${session} msg:msg_${i} prompt:${prompt} cost:0 model:openai/gpt-5 total:${input + cacheRead + 40} (in:${input} out:30 reason:10 cache-read:${cacheRead} cache-write:0)`;
 
 test("empty/missing vault → friendly message, never throws", () => {
   assert.equal(getTokensSummary(path.join(os.tmpdir(), `nope-${Date.now()}.md`)), "No token data yet.");
@@ -26,6 +26,7 @@ test("default window is the newest 10 requests, window printed in header", () =>
   assert.match(out, /rows 10 of 15 requests/);
   assert.ok(out.includes("m14"), "newest present");
   assert.ok(!out.includes("m4 "), "oldest excluded");
+  assert.match(out, /\| 1 session \|/, "session count comes from the printed rows, not the scan");
 });
 
 test("--last N narrows rows, --days N filters by entry date", () => {
@@ -54,17 +55,56 @@ test("each row reports steps, per-step cache-read and per-step fresh-in", () => 
   assert.match(out, /fresh-in\/step:\s*55/, "input 110 over 2 steps");
 });
 
-test("rollup covers every request of the newest session, not just shown rows", () => {
+test("one rollup line per session with a printed row, over that session's whole window", () => {
   const p = tmp();
   fs.writeFileSync(p, [
-    line("2026-10-18", 1, { session: "ses_new", prompt: "a", cacheRead: 900 }),
-    line("2026-10-18", 2, { session: "ses_new", prompt: "b", cacheRead: 800 }),
-    line("2026-10-18", 3, { session: "ses_old", prompt: "c", cacheRead: 700 }),
+    line("2026-10-18", 1, { session: "ses_new", prompt: "a", cacheRead: 900, time: "10:00:00" }),
+    line("2026-10-18", 2, { session: "ses_new", prompt: "b", cacheRead: 800, time: "10:00:30" }),
+    line("2026-10-18", 3, { session: "ses_old", prompt: "c", cacheRead: 700, time: "10:01:00" }),
   ].join("\n"), "utf8");
-  const out = getTokensSummary(p, { n: 1 });
-  assert.match(out, /rollup ses_new: requests:2 steps:2/);
-  assert.match(out, /rollup ses_new:.*total\(sum of steps\):1,980/, "row totals 1040 + 940, older ses_old row excluded");
-  assert.ok(!out.includes("ses_old"), "other sessions excluded from rollup");
+  const out = getTokensSummary(p);
+  const rolls = out.split("\n").filter((l) => l.startsWith("rollup "));
+  assert.equal(rolls.length, 2, "one line per session in the window, not just the newest");
+  assert.equal(rolls[0], "rollup ses_old: requests:1 steps:1 total(sum of steps):840 cache-read/step:700 fresh-in/step:100 2026-10-18 10:01:00 → 2026-10-18 10:01:00");
+  assert.equal(rolls[1], "rollup ses_new: requests:2 steps:2 total(sum of steps):1,980 cache-read/step:850 fresh-in/step:100 2026-10-18 10:00:00 → 2026-10-18 10:00:30");
+  assert.match(out, /\| 2 sessions \|/, "both sessions printed, both counted");
+});
+
+test("rows are newest-first and the header range is never reversed", () => {
+  const p = tmp();
+  fs.writeFileSync(p, [
+    line("2026-10-18", 1, { prompt: "old", time: "08:47:55" }),
+    line("2026-10-18", 2, { prompt: "mid", time: "08:52:04" }),
+    line("2026-10-18", 3, { prompt: "new", time: "09:01:55" }),
+  ].join("\n"), "utf8");
+  const out = getTokensSummary(p);
+  const labels = out.split("\n").filter((l) => /steps:\s*\d+ total:/.test(l)).map((l) => l.slice(0, 19).trim());
+  assert.deepEqual(labels, ["2026-10-18 09:01:55", "2026-10-18 08:52:04", "2026-10-18 08:47:55"], "ascending input still prints newest-first");
+  assert.match(out, /window: last 10 requests \| 2026-10-18 08:47:55 → 2026-10-18 09:01:55 \|/);
+});
+
+test("a request is labelled by its last step time, not its first", () => {
+  const p = tmp();
+  fs.writeFileSync(p, [
+    line("2026-10-18", 1, { prompt: "r1", time: "09:01:29" }),
+    line("2026-10-18", 2, { prompt: "r1", time: "09:01:35" }),
+    line("2026-10-18", 3, { prompt: "r1", time: "09:01:55" }),
+    line("2026-10-18", 4, { prompt: "r2", time: "09:02:10" }),
+  ].join("\n"), "utf8");
+  const out = getTokensSummary(p);
+  assert.match(out, /2026-10-18 09:01:55 r1\s+steps: 3/, "label is the newest step of the request");
+  assert.match(out, /window: last 10 requests \| 2026-10-18 09:01:29 → 2026-10-18 09:02:10 \|/, "range spans first step of oldest to last step of newest");
+});
+
+test("over-budget windows drop oldest rows and say how many", () => {
+  const p = tmp();
+  const rows = [];
+  for (let i = 0; i < 30; i++) rows.push(line("2026-10-18", i, { prompt: `p${i}`, session: `ses_${i % 6}`, time: `10:${String(i).padStart(2, "0")}:00` }));
+  fs.writeFileSync(p, rows.join("\n"), "utf8");
+  const out = getTokensSummary(p, { maxPrompts: 30 });
+  assert.ok(out.split("\n").length <= 15, `${out.split("\n").length} lines`);
+  assert.match(out, /\+\d+ more rows \(oldest of 30 requests\)/);
+  assert.ok(!/p0\s/.test(out), "the oldest row was the one dropped");
 });
 
 test("in within 1% of cache-read flags a possible double-count", () => {
@@ -91,6 +131,17 @@ test("output stays under 15 lines with a full window plus flag", () => {
   const out = getTokensSummary(p);
   assert.ok(out.split("\n").length <= 15, `${out.split("\n").length} lines`);
   assert.equal(out.split("\n").filter((l) => /steps:\s*\d+ total:/.test(l)).length, 10, "10 rows");
+});
+
+test("15-line cap holds for a wide --last N window with many sessions and a flag", () => {
+  const p = tmp();
+  const rows = [];
+  for (let i = 0; i < 40; i++) rows.push(line("2026-10-18", i, { prompt: `q${i}`, session: `ses_${i % 8}`, input: 1000, cacheRead: 1001 }));
+  fs.writeFileSync(p, rows.join("\n"), "utf8");
+  for (const maxPrompts of [20, 40, 1]) {
+    const out = getTokensSummary(p, { maxPrompts });
+    assert.ok(out.split("\n").length <= 15, `maxPrompts ${maxPrompts} → ${out.split("\n").length} lines`);
+  }
 });
 
 test("total is labelled as a step sum, never as context size", () => {
