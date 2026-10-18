@@ -2,6 +2,8 @@
 
 Entries are prepended at the top (newest first), auto-archived after 50 entries.
 
+2026-10-18 — Days mode reports a scan cut as "window truncated at scan limit (N requests read)"; the "N of M requested" form is last-mode only, and hidden rollups pluralize ("+1 session not shown") — why: days mode compared itself against maxPrompts, a count the user never asked for, so an ordinary 7-day window could report a bogus shortfall; qualifies 8f381d; cbbb90
+
 2026-10-18 — `/tokens` header counts window sessions, not printed rows, and prints "+K sessions not shown" for cap-dropped rollups; a last-mode scan short of maxPrompts widens to SCAN_CEIL or says "truncated at scan limit: N of M" — why: header claimed 10 requests while printing 3; 8f381d
 
 2026-10-18 — Rollups aggregate only window requests; days mode scans to SCAN_CEIL; a request cut by the scan limit is marked ~partial and excluded from rollup totals — why: rolling up every scanned group made `--last 3` report requests:5 with a range starting before the header's, and a 7-day window never scanned past the request-window limit; 2375e0f

@@ -2,6 +2,8 @@
 
 Entries are prepended at the top (newest first), auto-archived after 50 entries; resolving one means editing its Status field in place, not moving or deleting it.
 
+2026-10-18 — `memory.js add decision|error` writes only to the vault `OpenCode/Decisions.md`, never `.opencode/memory/decisions.md`, so the entry is invisible to the session that auto-loads the project file — Status: Open — target() hardcodes the vault for those two types and `sync` only rebuilds index+profile, so the project mirror needs a hand copy; 0507c2
+
 2026-10-18 — `node --test tools/token-report/` fails with MODULE_NOT_FOUND on Node 24; use a glob (`node --test "tools/token-report/*.test.js"`) — Status: Open — a directory argument is resolved as a module path, so it reports a fake test failure that costs a re-diagnosis
 
 2026-10-18 — Project instructions array replaces the global one, so global concise/clarify/profile.md never reached a session; repeated them as absolute paths — Status: Resolved — verified by injection audit: only AGENTS.md + the two project memory files arrived
