@@ -1,6 +1,14 @@
 # Decisions
 
-Entries are prepended at the top (newest first), auto-archived after 50 entries.
+Entries are prepended at the top (newest first), auto-archived after 25 entries.
+
+2026-10-20 — Token audit: the auto-loaded instruction set was half the fixed prompt floor (6,701 of ~13,400 tokens) and the memory logs grew unbounded at +147 tok/day; the live logs now hold 25 entries and `memory.js recall` searches the local `*_archive.md` siblings so archiving hides nothing — why: every request re-sends the whole instruction set, so a standing prompt cost compounds forever; 21 decisions moved to decisions_archive.md, 0 lost
+
+2026-10-20 — The auto-loaded context is now guarded by `scripts/context-budget.test.js` (byte budgets for instruction files, skill and agent descriptions; ≤25 entries per memory log; no `*_archive.md` in any instructions list) — why: the leak was silent — a 46-entry log and a 1,016-char skill description had accumulated without any test noticing
+
+2026-10-20 — Compaction moved to the v2 keys (`keep.tokens` 15000, `buffer` 8000); the v1 `prune`/`reserved` keys are inert in v2.0.26, so dead tool output is never pruned away and a long chat now needs an explicit `/compact` past ~60k context — why: v2 replaced tail-turn/pruning with summaries, so the old assumption no longer holds
+
+2026-10-20 — `opencode run` (CLI) applies no `instructions` array, global or project, although the desktop session applies both; the CLI probe therefore sees only the AGENTS.md files — why: found while building the before/after probe, so a CLI-only measurement would have missed the memory-log saving entirely; the desktop path was measured from the instruction set instead
 
 2026-10-19 — a feature that leaves the report takes its code with it: the !dbl marker left the 22-line report, so stepDoubleCount, DBL_TOLERANCE and the per-step pairs array had no call sites and no tests, and were removed — why: dead code misleads the next reader; verified inert by a byte-identical report from a fixed vault snapshot; be34f1b
 
@@ -44,52 +52,3 @@ Entries are prepended at the top (newest first), auto-archived after 50 entries.
 
 2026-10-14 — RTK v1.0.0 source-built (--locked, tag v1.0.0 over develop) plus OpenCode plugin installed with telemetry blocked (RTK_TELEMETRY_DISABLED=1, consent never asked); --opencode also drops Claude-side RTK.md/CLAUDE.md ref/filter template, kept as harmless with hook inactive — why: token savings on tool output with fail-open shim verified byte-identical plus user-confirmed compaction
 
-2026-10-12 — Profile README rebuilt backend-first: internship dropped (finished), AI-workflow focus leads, contribution snake plus dark-themed stats cards, real contacts merged from a GitHub-side edit — NASH\nashesc pushed through 93066ee
-
-2026-10-12 — Default Project cleanup: removed docs/qa screenshots, AGENTS.md.bak, and all docs/project/plans history (7 tracked deletions staged, rest untracked); plugin-shim.test.js kept as active contract, suite 31/31 green — backup zip in Temp\opencode
-
-2026-10-12 — Clarification-by-default: consequential uncertainty asks via question tool (batched, plain words), trivial assumptions proceed stated-inline; questions exempt from concise budget — live instructions/clarify.md plus planner route, pushed distro 6d40369
-
-2026-10-11 — P3 docs batch: tester/plan/README statements corrected, helpers resolve absolute paths, delete_note deduped; subagent_depth 2 kept and token gate untouched with recorded reasons — pushed 84083db
-
-2026-10-11 — P2 hardening: vault patch/tag/frontmatter denied (write_note kept, memory workflow requires it), 6 key shapes added plus whole-tree scan, small_model out of distro default — pushed bc32a1d
-
-2026-10-11 — P1 config bundle: limit.context/output on 9 documented models, edit default back to allow, over-broad bash filename denies dropped, concise.md tracked with publisher fail-closed check — pushed c173ead
-
-2026-10-11 — Distro re-flattened to repo root (52 pure renames, byte-verified identical copies), publisher -DestRoot now defaults to root — pushed 9b93ddd
-
-2026-10-11 — Gitleaks gate made functional: git --pre-commit --staged with distinct findings exit code, findings block, tool errors stay capture-only — verified 10/10 tests plus real-commit block on js/ps1 paths, pushed 658ebb1
-
-2026-10-11 — Brevity enforced in 4 layers: measurable concise.md budget plus AGENTS.md block plus per-call plugin plus agent footers — single vague instruction drifts under compaction and thoroughness conflicts
-
-2026-10-11 — Never set agent.prompt to a style file alone: custom prompt replaces the provider base prompt and drops tool-use instructions; use append-mode plugin instead — planner overlay dropped for this reason
-
-2026-10-11 — Hook is node-first with gitleaks soft-gate (warns when absent, never blocks); .git hook BOM broke git spawning, rewritten BOM-free — hook can't silently die and secrets get a second layer
-
-2026-10-11 — Distro project-template/tools/ was an unsynced fossil; manifest now mirrors tools/token-report/*.js — template/plugin versions can't drift again
-
-2026-10-11 — Review claims disproved, not implemented: limit blocks are billing metadata, write:deny is schema-inert, concise.md exists — record, don't build
-
-2026-10-11 — Encoding rule: no-BOM .md/.jsonc, BOM kept on pattern-bearing ps1/psm1 — PS 5.1 reads BOM-less scripts as ANSI and misparses non-ASCII (bisect-proven)
-
-2026-10-11 — Provider apiKeys moved to {env:} indirections, unused token_router deleted — no literal keys in live config; publish fails closed otherwise
-
-2026-10-11 — P0+P1 review pass completed, verified live, pushed (distro through c594442, project db062a6) — sanitizer/drift-guard/planner-depth-0/token-gate/hook all green
-
-2026-10-10 — Distro re-nested under opencode-workflow/ in local tree only (git mv, uncommitted); GitHub flat at 0921452 — local-only layout diverges from remote until a move commit is approved
-
-2026-10-10 — Distro published and pushed (34 files, secret sweep clean); sanitizer now asserts pre-redact with broadened key classes — publish stays manual, never auto-commit
-
-2026-10-10 — Harness hardened per audit: bash allowlist trimmed, planner deny-edit plus depth 2, provider schema fixes, token vault update-in-place — verified fixes only, no rewrites
-
-2026-10-10 — Token reporting is vault-log-only; footer polling removed — text.complete pull loop raced render-finalization, vault log plus /tokens covers the need, shim tests rewritten to lock the contract (26/26 green)
-
-2026-10-10 — Distro sync is /publish-workflow (global command plus Publish-Workflow.ps1), manual per change — fail-closed sanitize, fixed manifest, no auto-commit; published 8d70bef and a53d9e6
-
-2026-10-10 — Authoritative config.json schema keeps permission-object and compaction reserved/prune; V2 permissions-array migration rejected — schema fetch disproved the docs-based plan, user prefers literal keys in live global config over env indirection, both experiments fully rewound
-
-2026-10-03 — opencode-workflow/ subfolder is the sole GitHub distro copy; workflow edits mirror there sanitized, siblings untouched — why: single pushable copy prevents drift between live config and published harness.
-
-2026-09-20 — Adopted hybrid auto-logging — balances automatic error capture with user approval prompts.
-
-2026-09-04 — VERIFY-PROBE instructions-load check — temporary entry to test `.opencode/memory/*.md` auto-load in a fresh session; delete after verification.

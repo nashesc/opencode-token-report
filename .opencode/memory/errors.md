@@ -1,6 +1,8 @@
 # Errors
 
-Entries are prepended at the top (newest first), auto-archived after 50 entries; resolving one means editing its Status field in place, not moving or deleting it.
+Entries are prepended at the top (newest first), auto-archived after 25 entries; resolving one means editing its Status field in place, not moving or deleting it.
+
+2026-10-20 — `skills.test.js` was already failing before the token audit (2 of 4 tests: the logo-design description was 1,016 chars and the total description budget was 2,161 > 1,600) — Status: Open — the description trims fixed both; the remaining failure is the logo-design body at 218 lines vs the 60-line limit, which is a deliberate router-plus-references design (14 reference files), not bloat — why: restructuring a working creative pipeline to satisfy a lint threshold was out of scope for the audit; the guard needs a decision, not a rewrite
 
 2026-10-19 — the distro's project-template/.opencode/memory/*.md are empty scaffolds ("No decisions logged yet."), not stale copies of the live log — Status: Resolved — the publisher manifest omits them on purpose; reading them as stale would have shipped this project's log into every template clone; 9cef77b
 
