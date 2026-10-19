@@ -2,6 +2,12 @@
 
 Entries are prepended at the top (newest first), auto-archived after 50 entries.
 
+2026-10-19 — a feature that leaves the report takes its code with it: the !dbl marker left the 22-line report, so stepDoubleCount, DBL_TOLERANCE and the per-step pairs array had no call sites and no tests, and were removed — why: dead code misleads the next reader; verified inert by a byte-identical report from a fixed vault snapshot; be34f1b
+
+2026-10-19 — /tokens findings changed: the 91%-re-read "already efficient" line is gone; chat advice is one rule (restart → new chat per task, not mid-task; heaviest chat → new chat when a task changes, needs 2+ chats); the fresh-text finding says % of tokens, not % of cost — why: praise is not a fix, "keep reusing chats" contradicted "split it in two", and the finding counts tokens; 374cd31
+
+2026-10-19 — the /tokens cold-start note reads "restarted from scratch, 169K re-sent" instead of "(+169K)" — why: the legend that explained the number was cut, so the row has to say what the number means; 374cd31
+
 2026-10-19 — the distro's project-template keeps empty .opencode/memory scaffolds and the publisher manifest deliberately excludes .opencode/memory/*.md — why: the live decision log is this project's personal history, and a template user must start with their own log; the earlier "stale copies" reading was wrong; recorded in Publish-Workflow.ps1 and publish-workflow.md; 9cef77b
 
 2026-10-19 — the /tokens report drops the cut-short disclosure and the (dup?) warning; the header counts what was counted ("31 requests counted, latest 10 shown") — why: brevity over two honesty lines, so totals can read low by one request and stepDoubleCount now has no visible output; user-approved; ec7143

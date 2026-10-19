@@ -2,6 +2,8 @@
 
 Entries are prepended at the top (newest first), auto-archived after 50 entries; resolving one means editing its Status field in place, not moving or deleting it.
 
+2026-10-19 — the distro's project-template/.opencode/memory/*.md are empty scaffolds ("No decisions logged yet."), not stale copies of the live log — Status: Resolved — the publisher manifest omits them on purpose; reading them as stale would have shipped this project's log into every template clone; 9cef77b
+
 2026-10-19 — PowerShell Get-Content -Raw / Set-Content corrupted a UTF-8 source file: em-dashes and arrows became mojibake, a BOM was added, and the mangled ENTRY_RE silently returned "No token data yet." — Status: Resolved — the ANSI read is the root cause; reverted via git checkout and re-applied with the edit tool; 2377d7
 
 2026-10-19 — `!dbl` false-positived on cold-then-warm requests: prompt msg_15258e0d1001OAMYpdkRYK3pcK summed in 62,474 vs cache-read 61,956 (0.8% apart) with no repeated step — Status: Resolved — the check compared request-level sums, which a cold first step plus a warm second step makes deceptively similar; now evaluated per step; 2d7162
