@@ -13,9 +13,6 @@ const MAX_LINES = 24;
 const FENCE_LINES = 2;
 const MAX_FINDINGS = 3;
 const TABLE_COLUMNS = { time: 11, rounds: 6, tokens: 8 };
-// in ≈ cache-read means one side may be reported twice; 1% tolerance so
-// rounding noise doesn't trip the flag.
-const DBL_TOLERANCE = 0.01;
 // Below this cache share on its first step, a request counts as cold-start.
 const COLD_SHARE = 0.05;
 const DEFAULT_ROWS = 10;
@@ -46,19 +43,6 @@ function cutoffDate(days) {
   const d = new Date();
   d.setDate(d.getDate() - (days - 1));
   return d.toISOString().slice(0, 10);
-}
-
-// in ≈ cache-read means one side may be reported twice; 1% tolerance so
-// rounding noise doesn't trip the flag. Per STEP, not per request: a request
-// that starts cold (all in, no cache) and then warms (all cache) has two
-// large-but-different values, and their sums can land within 1% of each other
-// without anything being counted twice.
-function stepDoubleCount(g) {
-  return g.pairs.some(([fresh, cached]) => {
-    if (fresh <= 0 || cached <= 0) return false;
-    const hi = Math.max(fresh, cached);
-    return Math.abs(fresh - cached) / hi <= DBL_TOLERANCE;
-  });
 }
 
 // A request is cold-start when its first step reads almost nothing from cache
@@ -130,13 +114,9 @@ function buildGroups(entries) {
         session: e.sessionID, model: e.model,
         firstKey: e.sortKey, firstAt: e.at, firstIn: e.input, firstCacheRead: e.cacheRead,
         lastKey: e.sortKey, lastAt: e.at,
-        pairs: [],
         steps: 0, total: 0, input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0 };
       byKey.set(key, g); groups.push(g);
     }
-    // Per-step in/cache-read pairs: the double-count and cold-start rules are
-    // step-local, and the sums alone cannot tell a repeat from a cold miss.
-    g.pairs.push([e.input, e.cacheRead]);
     g.steps += 1;
     g.total += e.total; g.input += e.input; g.output += e.output; g.reasoning += e.reasoning;
     g.cacheRead += e.cacheRead; g.cacheWrite += e.cacheWrite;
