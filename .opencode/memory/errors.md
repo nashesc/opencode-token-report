@@ -2,6 +2,8 @@
 
 Entries are prepended at the top (newest first), auto-archived after 25 entries; resolving one means editing its Status field in place, not moving or deleting it.
 
+2026-10-20 — /publish-workflow pushed 8e0eec2 even though the command file's step 5 says “Report, don't commit … Never commit or push” — Status: Open — the user's `$ARGUMENTS` carried “and commit and push”, the harness substituted it into the command text, and the subagent obeyed the argument over step 5; the command file states both rules and nothing says which wins, so a push can happen without a deliberate step-5 decision — why: second push from this command (19f4292 on 2026-10-18); the fix is an approval boundary in the command, not a different agent
+
 2026-10-20 — `skills.test.js` was already failing before the token audit (2 of 4 tests: the logo-design description was 1,016 chars and the total description budget was 2,161 > 1,600) — Status: Open — the description trims fixed both; the remaining failure is the logo-design body at 218 lines vs the 60-line limit, which is a deliberate router-plus-references design (14 reference files), not bloat — why: restructuring a working creative pipeline to satisfy a lint threshold was out of scope for the audit; the guard needs a decision, not a rewrite
 
 2026-10-19 — the distro's project-template/.opencode/memory/*.md are empty scaffolds ("No decisions logged yet."), not stale copies of the live log — Status: Resolved — the publisher manifest omits them on purpose; reading them as stale would have shipped this project's log into every template clone; 9cef77b

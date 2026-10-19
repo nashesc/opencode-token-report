@@ -50,3 +50,6 @@ Archived entries (oldest first, append-only). This file is never auto-loaded.
 2026-10-12 — Clarification-by-default: consequential uncertainty asks via question tool (batched, plain words), trivial assumptions proceed stated-inline; questions exempt from concise budget — live instructions/clarify.md plus planner route, pushed distro 6d40369
 
 2026-10-11 — P3 docs batch: tester/plan/README statements corrected, helpers resolve absolute paths, delete_note deduped; subagent_depth 2 kept and token gate untouched with recorded reasons — pushed 84083db
+2026-10-14 — yt-dlp subtitle truth: --print suppresses subtitle file output (silent pass, no error), --js-runtimes is unnecessary for subs (no-runtime warning harmless, 95KB vtt downloads fine) — why: controlled with/without runs isolated --print as the true cause after first misattributing to the missing JS runtime
+
+2026-10-14 — RTK v1.0.0 source-built (--locked, tag v1.0.0 over develop) plus OpenCode plugin installed with telemetry blocked (RTK_TELEMETRY_DISABLED=1, consent never asked); --opencode also drops Claude-side RTK.md/CLAUDE.md ref/filter template, kept as harmless with hook inactive — why: token savings on tool output with fail-open shim verified byte-identical plus user-confirmed compaction

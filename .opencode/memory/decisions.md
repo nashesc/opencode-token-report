@@ -2,6 +2,10 @@
 
 Entries are prepended at the top (newest first), auto-archived after 25 entries.
 
+2026-10-20 — the project opencode.jsonc comment claiming a project `instructions` array REPLACES the global one contradicts the v2 docs (“Entries from every config document are combined”); the comment was rewritten to record both possibilities and the three global entries stay repeated, because the desktop and the CLI resolve the list differently and only the desktop applies it at all — why: a stale “VERIFIED” claim in a file every session reads misleads the next session into either dropping the entries or duplicating them
+
+2026-10-20 — the auto-archive threshold is written in four places — both log commands, the MemoryHelpers default, and the header line of each memory file — and must move together; the token audit lowered it 50 → 25 in all four — why: a threshold that differs between the command and the helper silently fails to archive, and these logs are auto-loaded into every prompt
+
 2026-10-20 — Token audit: the auto-loaded instruction set was half the fixed prompt floor (6,701 of ~13,400 tokens) and the memory logs grew unbounded at +147 tok/day; the live logs now hold 25 entries and `memory.js recall` searches the local `*_archive.md` siblings so archiving hides nothing — why: every request re-sends the whole instruction set, so a standing prompt cost compounds forever; 21 decisions moved to decisions_archive.md, 0 lost
 
 2026-10-20 — The auto-loaded context is now guarded by `scripts/context-budget.test.js` (byte budgets for instruction files, skill and agent descriptions; ≤25 entries per memory log; no `*_archive.md` in any instructions list) — why: the leak was silent — a 46-entry log and a 1,016-char skill description had accumulated without any test noticing
@@ -47,8 +51,4 @@ Entries are prepended at the top (newest first), auto-archived after 25 entries.
 2026-10-15 — logo-design skill integrated (pinned 0ecf52e, ask-gated in both configs, publisher skips multi-file skill dirs with notice, /logo command added, distro README plus template gitignore updated) — why: 14MB trademarked library must never ship in the distro; skill stays global-only while the workflow ships
 
 2026-10-14 — Web-research skill added (global skills/web-research/SKILL.md, 39 lines): built-ins first, yt-dlp 2026.8.19 subtitles into %TEMP%\subs, login-backed platforms declined; mirrored to distro and pushed ed3aa49 — why: minimal zero-login research path without Agent Reach; baseline passed so Exa/mcporter, Jina, gh all excluded
-
-2026-10-14 — yt-dlp subtitle truth: --print suppresses subtitle file output (silent pass, no error), --js-runtimes is unnecessary for subs (no-runtime warning harmless, 95KB vtt downloads fine) — why: controlled with/without runs isolated --print as the true cause after first misattributing to the missing JS runtime
-
-2026-10-14 — RTK v1.0.0 source-built (--locked, tag v1.0.0 over develop) plus OpenCode plugin installed with telemetry blocked (RTK_TELEMETRY_DISABLED=1, consent never asked); --opencode also drops Claude-side RTK.md/CLAUDE.md ref/filter template, kept as harmless with hook inactive — why: token savings on tool output with fail-open shim verified byte-identical plus user-confirmed compaction
 
