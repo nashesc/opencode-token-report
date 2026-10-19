@@ -2,6 +2,12 @@
 
 Entries are prepended at the top (newest first), auto-archived after 50 entries.
 
+2026-10-19 — the /tokens report drops the cut-short disclosure and the (dup?) warning; the header counts what was counted ("31 requests counted, latest 10 shown") — why: brevity over two honesty lines, so totals can read low by one request and stepDoubleCount now has no visible output; user-approved; ec7143
+
+2026-10-19 — /tokens renders a fenced 22-line plain-language report: TOKEN USAGE header, TOTAL, WHAT TO FIX (max 3 numbered findings), SPLIT, LATEST 10 table (Time/Rounds/Tokens/Note), one-line Round definition; totals still cover the newest 50 requests while the table stays at 10 rows — why: jargon rows and a 38-line wall hid the three numbers a person acts on; presentation only, no calculation touched; supersedes the 15-line and 45-line layouts; 4bff27a
+
+2026-10-19 — `!dbl` fires only when a single step has nonzero in within 1% of its own cache-read; a row is marked `cold:K` when its first step reads under 5% of that step's own context, K = that step's in — why: cold-start-then-warm requests look like double counts in the sums, and per-step pairs plus earliest-step values are what separate a repeat from a cold miss; the marker rides the row line so the 15-line budget is unchanged; 2b97fd
+
 2026-10-18 — Days mode reports a scan cut as "window truncated at scan limit (N requests read)"; the "N of M requested" form is last-mode only, and hidden rollups pluralize ("+1 session not shown") — why: days mode compared itself against maxPrompts, a count the user never asked for, so an ordinary 7-day window could report a bogus shortfall; qualifies 8f381d; cbbb90
 
 2026-10-18 — `/tokens` header counts window sessions, not printed rows, and prints "+K sessions not shown" for cap-dropped rollups; a last-mode scan short of maxPrompts widens to SCAN_CEIL or says "truncated at scan limit: N of M" — why: header claimed 10 requests while printing 3; 8f381d
