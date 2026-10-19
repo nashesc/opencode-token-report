@@ -2,6 +2,8 @@
 
 Entries are prepended at the top (newest first), auto-archived after 50 entries.
 
+2026-10-19 — the distro's project-template keeps empty .opencode/memory scaffolds and the publisher manifest deliberately excludes .opencode/memory/*.md — why: the live decision log is this project's personal history, and a template user must start with their own log; the earlier "stale copies" reading was wrong; recorded in Publish-Workflow.ps1 and publish-workflow.md; 9cef77b
+
 2026-10-19 — the /tokens report drops the cut-short disclosure and the (dup?) warning; the header counts what was counted ("31 requests counted, latest 10 shown") — why: brevity over two honesty lines, so totals can read low by one request and stepDoubleCount now has no visible output; user-approved; ec7143
 
 2026-10-19 — /tokens renders a fenced 22-line plain-language report: TOKEN USAGE header, TOTAL, WHAT TO FIX (max 3 numbered findings), SPLIT, LATEST 10 table (Time/Rounds/Tokens/Note), one-line Round definition; totals still cover the newest 50 requests while the table stays at 10 rows — why: jargon rows and a 38-line wall hid the three numbers a person acts on; presentation only, no calculation touched; supersedes the 15-line and 45-line layouts; 4bff27a
