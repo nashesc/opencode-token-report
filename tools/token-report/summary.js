@@ -174,27 +174,28 @@ const COLUMN_HEADER = `${pad("TIME", TABLE_COLUMNS.time)} ${padL("ROUNDS", TABLE
 // thing worth flagging — that it restarted from scratch (a fresh start
 // re-sends the whole chat at full price).
 function tableRow(g) {
-  const note = isColdStart(g) ? `restarted from scratch (+${fmtNum(g.firstIn)})` : "";
+  const note = isColdStart(g) ? `restarted from scratch, ${fmtNum(g.firstIn)} re-sent` : "";
   return `${pad(g.lastAt.slice(5, 16), TABLE_COLUMNS.time)} ${padL(g.steps, TABLE_COLUMNS.rounds)} ` +
     `${padL(fmtNum(g.total), TABLE_COLUMNS.tokens)}  ${note}`.replace(/\s+$/, "");
 }
 
 // Up to MAX_FINDINGS findings, each one finding plus one action. Every rule
 // reads numbers buildGroups already made; the first three that fire win, and
-// a clean window still gets a line saying so.
+// a clean window still gets a line saying so. A rule that cannot name an
+// action is no rule — praise is not a finding.
 function findingsFor(base, chats, tags, ctx) {
   const { total, avg, waste, expired, freshShare, heaviestChat, heaviestRequest } = ctx;
   const out = [];
   if (expired > 0 && waste > 0.1 * total)
-    out.push(`${expired} request${expired === 1 ? "" : "s"} restarted from scratch, re-sending ${fmtNum(waste)} tokens at full price → reuse one chat per task.`);
-  if (heaviestChat && pct(heaviestChat.total, total) > 40)
-    out.push(`Chat ${tags.get(heaviestChat.session)} alone used ${pct(heaviestChat.total, total)}% of all tokens → clear it or split it in two.`);
+    out.push(`${expired} request${expired === 1 ? "" : "s"} restarted from scratch, re-sending ${fmtNum(waste)} tokens at full price → start a new chat per task, not mid-task.`);
+  // Only when the window holds another chat: a single-chat window would
+  // otherwise report "100% of all tokens" and send the reader nowhere.
+  if (heaviestChat && chats.length >= 2 && pct(heaviestChat.total, total) > 40)
+    out.push(`Chat ${tags.get(heaviestChat.session)} alone used ${pct(heaviestChat.total, total)}% of all tokens → start a new chat when a task changes.`);
   if (heaviestRequest && heaviestRequest.steps >= 5 && heaviestRequest.total > 3 * avg)
     out.push(`heaviest request ran ${heaviestRequest.steps} rounds for ${fmtNum(heaviestRequest.total)} → every round re-sends the chat, so split big topics.`);
   if (freshShare > 50)
-    out.push(`${freshShare}% of cost is new text sent at full price → trim long pasted logs and file dumps.`);
-  if (100 - freshShare >= 80)
-    out.push(`${100 - freshShare}% is re-read from the cheap saved copy → already efficient, keep reusing chats.`);
+    out.push(`${freshShare}% of tokens are new text sent at full price → trim long pasted logs and file dumps.`);
   if (out.length === 0)
     out.push(`nothing stands out: ${base.length} requests averaged ${fmtNum(avg)} tokens each → keep going.`);
   return out.slice(0, MAX_FINDINGS).map((f, i) => `${i + 1}. ${f}`);

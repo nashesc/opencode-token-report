@@ -86,21 +86,36 @@ test("WHAT TO FIX holds at most 3 numbered findings, each with one action", () =
   for (const f of found) assert.ok(f.includes(" → "), `finding carries one action: ${f}`);
 });
 
+test("no finding is emitted without an action, and the cost wording is gone", () => {
+  const p = tmp();
+  const rows = [];
+  for (let i = 0; i < 20; i++) rows.push(line("2026-10-18", i, { prompt: `p${i}`, session: `ses_${i % 5}`, input: 1000, cacheRead: i * 50 }));
+  fs.writeFileSync(p, rows.join("\n"), "utf8");
+  const out = getTokensSummary(p);
+  for (const f of findingsOf(out)) assert.ok(f.includes(" → "), `finding carries one action: ${f}`);
+  assert.ok(!out.includes("already efficient"), "praise is not a finding");
+  assert.ok(!out.includes("of cost"), "the finding counts tokens, not cost");
+  assert.match(findingsOf(out).find((l) => /new text/.test(l)), /^\d\. \d+% of tokens are new text sent at full price → /);
+});
+
 test("findings fire only on the numbers that justify them", () => {
   // One request, warm start, nothing dominant: nothing to fix, and it says so.
   const p = tmp();
   fs.writeFileSync(p, line("2026-10-18", 1, { prompt: "solo", input: 100, cacheRead: 900 }), "utf8");
   const clean = findingsOf(getTokensSummary(p));
   assert.ok(clean.length >= 1 && clean.length <= 3, `${clean.length} findings`);
-  assert.ok(clean.some((l) => /already efficient|nothing stands out/.test(l)), `no waste alleged: ${clean.join(" | ")}`);
+  assert.ok(clean.some((l) => /nothing stands out/.test(l)), `no waste alleged: ${clean.join(" | ")}`);
+  assert.ok(!clean.some((l) => /already efficient/.test(l)), "a rule that only praises is not a finding");
   assert.ok(!clean.some((l) => /restarted from scratch/.test(l)), "a warm start is not called waste");
+  assert.ok(!clean.some((l) => /Chat /.test(l)), "a one-chat window has no other chat to move to");
   // Same request, but it started from scratch: the wasted tokens are named.
   const q = tmp();
   fs.writeFileSync(q, [
     line("2026-10-18", 1, { prompt: "cold", input: 500_000, cacheRead: 0, time: "10:00:00" }),
     line("2026-10-18", 2, { prompt: "cold", input: 50, cacheRead: 900, time: "10:00:10" }),
   ].join("\n"), "utf8");
-  assert.match(findingsOf(getTokensSummary(q))[0], /^1\. 1 request restarted from scratch, re-sending 500K tokens at full price → /);
+  assert.match(findingsOf(getTokensSummary(q))[0],
+    /^1\. 1 request restarted from scratch, re-sending 500K tokens at full price → start a new chat per task, not mid-task\.$/);
 });
 
 test("the heaviest chat is named in a finding, with a label that cannot collide", () => {
@@ -111,7 +126,7 @@ test("the heaviest chat is named in a finding, with a label that cannot collide"
   fs.writeFileSync(p, rows.join("\n"), "utf8");
   const finding = findingsOf(getTokensSummary(p)).find((l) => l.includes("Chat "));
   assert.ok(finding, "the dominant chat is reported");
-  assert.match(finding, /^1\. Chat ead8a…+ alone used \d+% of all tokens → /, `label: ${finding}`);
+  assert.match(finding, /^1\. Chat ead8a…+ alone used \d+% of all tokens → start a new chat when a task changes\.$/, `label: ${finding}`);
 });
 
 test("each row shows time, rounds, tokens and the from-scratch note", () => {
@@ -122,14 +137,14 @@ test("each row shows time, rounds, tokens and the from-scratch note", () => {
   ].join("\n"), "utf8");
   const rows = rowsOf(getTokensSummary(p));
   assert.match(rows[0], /^10-19 05:24\s+1\s+1K$/, "no note, no trailing space");
-  assert.match(rows[1], /^10-19 04:09\s+1\s+61\.9K\s+restarted from scratch \(\+61\.7K\)$/);
+  assert.match(rows[1], /^10-19 04:09\s+1\s+61\.9K\s+restarted from scratch, 61\.7K re-sent$/);
 });
 
 test("numbers print as 44K / 1.28M, never as six digits", () => {
   const p = tmp();
   fs.writeFileSync(p, line("2026-10-18", 1, { prompt: "x", input: 1_277_462, cacheRead: 44_164 }), "utf8");
   const out = getTokensSummary(p);
-  assert.match(rowsOf(out)[0], /\s1\.32M\s+restarted from scratch \(\+1\.28M\)$/, "K and M with at most 2 decimals");
+  assert.match(rowsOf(out)[0], /\s1\.32M\s+restarted from scratch, 1\.28M re-sent$/, "K and M with at most 2 decimals");
   assert.ok(!/\d{5,}/.test(out), "no raw six-digit number anywhere in the report");
 });
 
